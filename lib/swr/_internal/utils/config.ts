@@ -1,6 +1,34 @@
 import { isUndefined, noop, mergeObjects } from "./shared";
 import { slowConnection } from "./env";
-import { FullConfiguration } from "../types";
+import type {
+  PublicConfiguration,
+  FullConfiguration,
+  RevalidatorOptions,
+  Revalidator,
+  ScopedMutator,
+  Cache
+} from '../types'
+import { initCache } from './cache'
+import { dequal } from 'dequal/lite'
+
+/*
+
+import { dequal } from 'dequal/lite'
+
+// 普通的 === 比较（比较引用）
+const obj1 = { name: 'Tom', age: 18 }
+const obj2 = { name: 'Tom', age: 18 }
+console.log(obj1 === obj2)        // false ❌ （虽然内容一样，但是不同对象）
+
+// dequal 比较（比较内容）
+console.log(dequal(obj1, obj2))   // true ✅ （内容一样就返回 true）
+
+*/
+const compare = dequal
+
+// Default cache provider
+const [cache, mutate] = initCache(new Map()) as [Cache<any>, ScopedMutator]
+export { cache, mutate, compare }
 
 export const defaultConfig: FullConfiguration = {
   // events
