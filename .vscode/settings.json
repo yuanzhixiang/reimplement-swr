@@ -7,4 +7,7 @@
   "editor.detectIndentation": false,
   // 保存时自动格式化
   "editor.formatOnSave": true,
+  // 将默认的格式化工具设置为 prettier
+  // vscode 里面似乎会默认这样设置，但 antigravity 需要手动设置
+  "editor.defaultFormatter": "esbenp.prettier-vscode"
 }
