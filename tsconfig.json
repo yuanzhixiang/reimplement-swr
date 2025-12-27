@@ -20,7 +20,7 @@
     ],
     "paths": {
       "@/*": ["./*"],
-      "swr": ["./lib/swr"]
+      "swr": ["./lib/swr/index"]
     }
   },
   "include": [
