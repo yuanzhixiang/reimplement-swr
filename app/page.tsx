@@ -1,7 +1,6 @@
 "use client";
 
-import useSWR from // , { Middleware, SWRHook }
-"swr";
+import useSWR from "swr"; // , { Middleware, SWRHook }
 
 // 记录请求耗时的中间件
 // const timerMiddleware: Middleware = (useSWRNext: SWRHook) => {

@@ -1,4 +1,9 @@
-import { isWindowDefined, isLegacyDeno } from "./helper";
+import React, { useEffect, useLayoutEffect } from "react";
+import {
+  hasRequestAnimationFrame,
+  isLegacyDeno,
+  isWindowDefined,
+} from "./helper";
 
 export const IS_SERVER = !isWindowDefined || isLegacyDeno;
 
@@ -13,6 +18,13 @@ const navigatorConnection =
       };
     }
   ).connection;
+
+// React currently throws a warning when using useLayoutEffect on the server.
+// To get around it, we can conditionally useEffect on the server (no-op) and
+// useLayoutEffect in the browser.
+export const useIsomorphicLayoutEffect = IS_SERVER
+  ? useEffect
+  : useLayoutEffect;
 
 // Adjust the config based on slow connection status (<= 70Kbps).
 export const slowConnection =

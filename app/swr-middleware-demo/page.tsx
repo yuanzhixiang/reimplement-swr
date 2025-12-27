@@ -1,8 +1,6 @@
-'use client'
+"use client";
 
-import useSWR
-// , { Middleware, SWRHook } 
-from 'swr'
+import useSWR from "swr"; // , { Middleware, SWRHook }
 
 // 记录请求耗时的中间件
 // const timerMiddleware: Middleware = (useSWRNext: SWRHook) => {
@@ -20,21 +18,25 @@ from 'swr'
 
 // 模拟 fetcher
 const fetcher = async (url: string) => {
-  await new Promise(resolve => setTimeout(resolve, 1000))
-  return { message: 'Hello SWR', url }
-}
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+  return { message: "Hello SWR", url };
+};
 
 export default function SWRMiddlewareDemo() {
-const { data, isLoading } = useSWR('/api/demo', fetcher, {
-  // use: [timerMiddleware],
-  revalidateOnFocus: false,
-})
+  const { data, isLoading } = useSWR("/api/demo", fetcher, {
+    // use: [timerMiddleware],
+    revalidateOnFocus: false,
+  });
 
   return (
-    <div style={{ padding: '20px' }}>
+    <div style={{ padding: "20px" }}>
       <h1>SWR 中间件 Demo</h1>
-      {isLoading ? <p>加载中...</p> : <pre>{JSON.stringify(data, null, 2)}</pre>}
+      {isLoading ? (
+        <p>加载中...</p>
+      ) : (
+        <pre>{JSON.stringify(data, null, 2)}</pre>
+      )}
       <p>打开控制台查看请求耗时日志</p>
     </div>
-  )
+  );
 }

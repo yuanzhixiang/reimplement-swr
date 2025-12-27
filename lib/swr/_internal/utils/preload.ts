@@ -11,6 +11,44 @@ import { SWRGlobalState } from "./global-state";
 import { isUndefined } from "./shared";
 import { INFINITE_PREFIX } from "../constants";
 
+// Basically same as Fetcher but without Conditional Fetching
+type PreloadFetcher<
+  Data = unknown,
+  SWRKey extends Key = Key
+> = SWRKey extends () => infer Arg
+  ? (arg: Arg) => FetcherResponse<Data>
+  : SWRKey extends infer Arg
+  ? (arg: Arg) => FetcherResponse<Data>
+  : never;
+
+export const preload = <
+  // 返回数据类型
+  Data = any,
+  // key 类型
+  SWRKey extends Key = Key,
+  // fetcher 函数类型，默认使用上面定义的
+  Fetcher extends BareFetcher = PreloadFetcher<Data, SWRKey>
+>(
+  key_: SWRKey,
+  fetcher: Fetcher
+): ReturnType<Fetcher> => {
+  // 序列化 key
+  const [key, fnArg] = serialize(key_);
+  // 从全局状态中解构出 PRELOAD 对象（第 4 个元素），用于存储预加载的请求
+  const [, , , PRELOAD] = SWRGlobalState.get(cache) as GlobalState;
+
+  // Prevent preload to be called multiple times before used.
+  // 去重逻辑：如果这个 key 已经有预加载请求在进行中，直接返回已有的 Promise，避免重复请求。
+  if (PRELOAD[key]) return PRELOAD[key];
+
+  // 调用 fetcher 发起请求，得到 Promise
+  const req = fetcher(fnArg) as ReturnType<Fetcher>;
+  // 将 Promise 存入 PRELOAD 对象，以便后续 useSWR 可以直接使用
+  PRELOAD[key] = req;
+  // 返回这个 Promise
+  return req;
+};
+
 // devtoolsUse.concat(preload) 中注册的 preload 其实就是这里的 middleware
 export const middleware: Middleware =
   // 这里是一个函数，实际上等价于另一种写法，看不懂的话看下面柯里化函数的解释
