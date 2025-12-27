@@ -94,6 +94,26 @@ export const useSWRHandler = <Data = any, Error = any>(
     cache
   ) as GlobalState;
 
+  // `key` is the identifier of the SWR internal state,
+  // `fnArg` is the argument/arguments parsed from the key, which will be passed
+  // to the fetcher.
+  // All of them are derived from `_key`.
+  const [key, fnArg] = serialize(_key);
+
+  // If it's the initial render of this hook.
+  const initialMountedRef = useRef(false);
+
+  // If the hook is unmounted already. This will be used to prevent some effects
+  // to be called after unmounting.
+  const unmountedRef = useRef(false);
+
+  // Refs to keep the key and config.
+  const keyRef = useRef(key);
+  const fetcherRef = useRef(fetcher);
+  const configRef = useRef(config);
+  const getConfig = () => configRef.current;
+  const isActive = () => getConfig().isVisible() && getConfig().isOnline();
+
   throw new Error("useSWRHandler is not implemented yet");
 };
 
