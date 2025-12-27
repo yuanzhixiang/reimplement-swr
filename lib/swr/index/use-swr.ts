@@ -18,7 +18,7 @@ import {
   UNDEFINED,
   OBJECT,
   isFunction,
-  // createCacheHelper,
+  createCacheHelper,
   SWRConfig as ConfigProvider,
   withArgs,
   // subscribeCallback,
@@ -39,7 +39,7 @@ import type {
   SWRConfiguration,
   SWRHook,
   RevalidateEvent,
-  // StateDependencies,
+  StateDependencies,
   GlobalState,
 } from "../_internal";
 
@@ -113,6 +113,29 @@ export const useSWRHandler = <Data = any, Error = any>(
   const configRef = useRef(config);
   const getConfig = () => configRef.current;
   const isActive = () => getConfig().isVisible() && getConfig().isOnline();
+
+  const [getCache, setCache, subscribeCache, getInitialCache] =
+    createCacheHelper<
+      Data,
+      State<Data, any> & {
+        // The original key arguments.
+        _k?: Key;
+      }
+    >(cache, key);
+
+  // 这是一个用于追踪状态依赖的对象。用来记录组件实际使用了哪些状态字段（如 data、error、isLoading），
+  // 这样当未使用的字段变化时，就不会触发重新渲染，是一种性能优化。
+  const stateDependencies = useRef<StateDependencies>({}).current;
+
+  // Resolve the fallback data from either the inline option, or the global provider.
+  // If it's a promise, we simply let React suspend and resolve it for us.
+  // 首先看看 config.fallbackData 的数据有没有，有的话就直接用 fallbackData
+  // 没有的话则从 config 里面找 fallback
+  const fallback = isUndefined(fallbackData)
+    ? isUndefined(config.fallback)
+      ? UNDEFINED
+      : config.fallback[key]
+    : fallbackData;
 
   throw new Error("useSWRHandler is not implemented yet");
 };

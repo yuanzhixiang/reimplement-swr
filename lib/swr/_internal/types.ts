@@ -1,5 +1,5 @@
 import type { SWRGlobalConfig } from "../index/index";
-import type * as revalidateEvents from './events'
+import type * as revalidateEvents from "./events";
 
 /**
  * Global state tuple containing SWR's internal state management structures.
@@ -24,25 +24,25 @@ export type GlobalState = [
   (key: string, value: any, prev: any) => void,
   /** Cache subscriber function that returns an unsubscribe function */
   (key: string, callback: (current: any, prev: any) => void) => () => void
-]
+];
 
 export type RevalidateCallback = <K extends RevalidateEvent>(
   type: K,
   opts?: any
-) => RevalidateCallbackReturnType[K]
+) => RevalidateCallbackReturnType[K];
 
 export type RevalidateEvent =
   | typeof revalidateEvents.FOCUS_EVENT
   | typeof revalidateEvents.RECONNECT_EVENT
   | typeof revalidateEvents.MUTATE_EVENT
-  | typeof revalidateEvents.ERROR_REVALIDATE_EVENT
+  | typeof revalidateEvents.ERROR_REVALIDATE_EVENT;
 
 type RevalidateCallbackReturnType = {
-  [revalidateEvents.FOCUS_EVENT]: void
-  [revalidateEvents.RECONNECT_EVENT]: void
-  [revalidateEvents.MUTATE_EVENT]: Promise<boolean>
-  [revalidateEvents.ERROR_REVALIDATE_EVENT]: void
-}
+  [revalidateEvents.FOCUS_EVENT]: void;
+  [revalidateEvents.RECONNECT_EVENT]: void;
+  [revalidateEvents.MUTATE_EVENT]: Promise<boolean>;
+  [revalidateEvents.ERROR_REVALIDATE_EVENT]: void;
+};
 
 /**
  * The main useSWR hook interface with multiple overloads for different usage patterns.
@@ -151,10 +151,10 @@ export interface SWRHook {
     Error = any,
     SWRKey extends Key = StrictKey,
     SWROptions extends
-    | SWRConfiguration<Data, Error, Fetcher<Data, SWRKey>>
-    | undefined =
-    | SWRConfiguration<Data, Error, Fetcher<Data, SWRKey>>
-    | undefined
+      | SWRConfiguration<Data, Error, Fetcher<Data, SWRKey>>
+      | undefined =
+      | SWRConfiguration<Data, Error, Fetcher<Data, SWRKey>>
+      | undefined
   >(
     key: SWRKey
   ): SWRResponse<Data, Error, SWROptions>;
@@ -176,10 +176,10 @@ export interface SWRHook {
     Error = any,
     SWRKey extends Key = StrictKey,
     SWROptions extends
-    | SWRConfiguration<Data, Error, Fetcher<Data, SWRKey>>
-    | undefined =
-    | SWRConfiguration<Data, Error, Fetcher<Data, SWRKey>>
-    | undefined
+      | SWRConfiguration<Data, Error, Fetcher<Data, SWRKey>>
+      | undefined =
+      | SWRConfiguration<Data, Error, Fetcher<Data, SWRKey>>
+      | undefined
   >(
     key: SWRKey,
     fetcher: Fetcher<Data, SWRKey> | null
@@ -207,10 +207,10 @@ export interface SWRHook {
     Error = any,
     SWRKey extends Key = StrictKey,
     SWROptions extends
-    | SWRConfiguration<Data, Error, Fetcher<Data, SWRKey>>
-    | undefined =
-    | SWRConfiguration<Data, Error, Fetcher<Data, SWRKey>>
-    | undefined
+      | SWRConfiguration<Data, Error, Fetcher<Data, SWRKey>>
+      | undefined =
+      | SWRConfiguration<Data, Error, Fetcher<Data, SWRKey>>
+      | undefined
   >(
     key: SWRKey,
     config: SWRConfigurationWithOptionalFallback<SWROptions>
@@ -242,10 +242,10 @@ export interface SWRHook {
     Error = any,
     SWRKey extends Key = StrictKey,
     SWROptions extends
-    | SWRConfiguration<Data, Error, Fetcher<Data, SWRKey>>
-    | undefined =
-    | SWRConfiguration<Data, Error, Fetcher<Data, SWRKey>>
-    | undefined
+      | SWRConfiguration<Data, Error, Fetcher<Data, SWRKey>>
+      | undefined =
+      | SWRConfiguration<Data, Error, Fetcher<Data, SWRKey>>
+      | undefined
   >(
     key: SWRKey,
     fetcher: Fetcher<Data, SWRKey> | null,
@@ -280,8 +280,8 @@ export interface SWRHook {
     Data = any,
     Error = any,
     SWROptions extends
-    | SWRConfiguration<Data, Error, BareFetcher<Data>>
-    | undefined = SWRConfiguration<Data, Error, BareFetcher<Data>> | undefined
+      | SWRConfiguration<Data, Error, BareFetcher<Data>>
+      | undefined = SWRConfiguration<Data, Error, BareFetcher<Data>> | undefined
   >(
     key: Key
   ): SWRResponse<Data, Error, SWROptions>;
@@ -301,8 +301,8 @@ export interface SWRHook {
     Data = any,
     Error = any,
     SWROptions extends
-    | SWRConfiguration<Data, Error, BareFetcher<Data>>
-    | undefined = SWRConfiguration<Data, Error, BareFetcher<Data>> | undefined
+      | SWRConfiguration<Data, Error, BareFetcher<Data>>
+      | undefined = SWRConfiguration<Data, Error, BareFetcher<Data>> | undefined
   >(
     key: Key,
     fetcher: BareFetcher<Data> | null
@@ -324,8 +324,8 @@ export interface SWRHook {
     Data = any,
     Error = any,
     SWROptions extends
-    | SWRConfiguration<Data, Error, BareFetcher<Data>>
-    | undefined = SWRConfiguration<Data, Error, BareFetcher<Data>> | undefined
+      | SWRConfiguration<Data, Error, BareFetcher<Data>>
+      | undefined = SWRConfiguration<Data, Error, BareFetcher<Data>> | undefined
   >(
     key: Key,
     config: SWRConfigurationWithOptionalFallback<SWROptions>
@@ -352,8 +352,8 @@ export interface SWRHook {
     Data = any,
     Error = any,
     SWROptions extends
-    | SWRConfiguration<Data, Error, BareFetcher<Data>>
-    | undefined = SWRConfiguration<Data, Error, BareFetcher<Data>> | undefined
+      | SWRConfiguration<Data, Error, BareFetcher<Data>>
+      | undefined = SWRConfiguration<Data, Error, BareFetcher<Data>> | undefined
   >(
     key: Key,
     fetcher: BareFetcher<Data> | null,
@@ -364,9 +364,9 @@ export interface SWRHook {
 type SWRConfigurationWithOptionalFallback<Options> =
   // If `Options` has `fallbackData`, this turns it to optional instead.
   Options extends SWRConfiguration &
-  Required<Pick<SWRConfiguration, "fallbackData">>
-  ? Omit<Options, "fallbackData"> & Pick<Partial<Options>, "fallbackData">
-  : Options;
+    Required<Pick<SWRConfiguration, "fallbackData">>
+    ? Omit<Options, "fallbackData"> & Pick<Partial<Options>, "fallbackData">
+    : Options;
 
 /**
  * Configuration types that are only used internally, not exposed to the user.
@@ -466,8 +466,8 @@ export type MutatorOptions<Data = any, MutationData = Data> = {
    * @defaultValue true
    */
   populateCache?:
-  | boolean
-  | ((result: MutationData, currentData: Data | undefined) => Data);
+    | boolean
+    | ((result: MutationData, currentData: Data | undefined) => Data);
 
   /**
    * Optimistic data to show immediately while mutation is pending.
@@ -478,11 +478,11 @@ export type MutatorOptions<Data = any, MutationData = Data> = {
    * @defaultValue undefined
    */
   optimisticData?:
-  | Data
-  | ((
-    currentData: Data | undefined,
-    displayedData: Data | undefined
-  ) => Data);
+    | Data
+    | ((
+        currentData: Data | undefined,
+        displayedData: Data | undefined
+      ) => Data);
 
   /**
    * Whether to rollback optimistic updates on error.
@@ -519,8 +519,8 @@ export type IsLoadingResponse<
   Options = SWRDefaultOptions<Data>
 > = SWRGlobalConfig extends { suspense: true }
   ? Options extends { suspense: true }
-  ? false
-  : false
+    ? false
+    : false
   : boolean;
 
 /**
@@ -546,18 +546,18 @@ export type BlockingData<Data = any, Options = SWRDefaultOptions<Data>> =
   // 检查 SWRGlobalConfig 是否包含 suspense 这个字段，并且他的值应该是 true
   // 检查全局配置是否开启了 suspense，如果全局开启，直接返回 true
   SWRGlobalConfig extends { suspense: true }
-  ? true
-  : // 如果没传任何配置，返回 false
-  Options extends undefined
-  ? false
-  : // 检查传入的配置中是否开启了 suspense
-  Options extends { suspense: true }
-  ? true
-  : // 检查是否提供了 fallbackData（默认数据）
-  Options extends { fallbackData: Data | Promise<Data> }
-  ? true
-  : // 以上都不满足，返回 false
-  false;
+    ? true
+    : // 如果没传任何配置，返回 false
+    Options extends undefined
+    ? false
+    : // 检查传入的配置中是否开启了 suspense
+    Options extends { suspense: true }
+    ? true
+    : // 检查是否提供了 fallbackData（默认数据）
+    Options extends { fallbackData: Data | Promise<Data> }
+    ? true
+    : // 以上都不满足，返回 false
+      false;
 
 /**
  * The response object returned by SWR hooks.
@@ -649,11 +649,11 @@ export type Middleware = (
   // 定义一个 swr 的钩子作为入参
   useSWRNext: SWRHook
 ) => // 返回值依然是一个函数
-  <Data = any, Error = any>(
-    key: Key,
-    fetcher: BareFetcher<Data> | null,
-    config: SWRConfiguration<Data, Error, BareFetcher<Data>>
-  ) => SWRResponse<Data, Error>;
+<Data = any, Error = any>(
+  key: Key,
+  fetcher: BareFetcher<Data> | null,
+  config: SWRConfiguration<Data, Error, BareFetcher<Data>>
+) => SWRResponse<Data, Error>;
 
 export interface RevalidatorOptions {
   retryCount?: number;
@@ -927,9 +927,9 @@ export type SWRConfiguration<
 > =
   // 下面是两个 & 说明这个类型是三个的聚合类型，包含他们三个的全部字段
   Partial<PublicConfiguration<Data, Error, Fn>> &
-  Partial<ProviderConfiguration> & {
-    provider?: (cache: Readonly<Cache>) => Cache;
-  };
+    Partial<ProviderConfiguration> & {
+      provider?: (cache: Readonly<Cache>) => Cache;
+    };
 
 /**
  * Response type that can be returned by fetcher functions.
@@ -967,18 +967,18 @@ export type Fetcher<
   // 此时 Arg = number | string，然后在下面 (arg: Arg) 这样写的时候就等于 (arg: number | string)
   // 他这个类型推断就跑通了
   SWRKey extends () => infer Arg | null | undefined | false
-  ? // 满足前面的条件则说明是函数类型，下面定义的就是函数
-  (arg: Arg) => FetcherResponse<Data>
-  : // 如果不满足前面的条件，那么就再次进行判断，这里和前面的区别是这里不是函数
-  SWRKey extends null | undefined | false
-  ? // 如果是 null | undefined | false 这些类型，那么就返回 never 类型
-  never
-  : // 如果不是 null | undefined | false 这些类型，那么将类型全部归为 Arg，这里和前面的区别是这里不是函数
-  SWRKey extends infer Arg
-  ? // 定义函数类型
-  (arg: Arg) => FetcherResponse<Data>
-  : // 如果不满足前面的类型，则返回 never 类型
-  never;
+    ? // 满足前面的条件则说明是函数类型，下面定义的就是函数
+      (arg: Arg) => FetcherResponse<Data>
+    : // 如果不满足前面的条件，那么就再次进行判断，这里和前面的区别是这里不是函数
+    SWRKey extends null | undefined | false
+    ? // 如果是 null | undefined | false 这些类型，那么就返回 never 类型
+      never
+    : // 如果不是 null | undefined | false 这些类型，那么将类型全部归为 Arg，这里和前面的区别是这里不是函数
+    SWRKey extends infer Arg
+    ? // 定义函数类型
+      (arg: Arg) => FetcherResponse<Data>
+    : // 如果不满足前面的类型，则返回 never 类型
+      never;
 
 /**
  * Represents a tuple of arguments that can be passed to a fetcher.
@@ -1145,3 +1145,10 @@ export type State<Data = any, Error = any> = {
   /** Whether this is the initial load with no cached data */
   isLoading?: boolean;
 };
+
+export interface StateDependencies {
+  data?: boolean;
+  error?: boolean;
+  isValidating?: boolean;
+  isLoading?: boolean;
+}
