@@ -93,7 +93,7 @@ export const initCache = <Data = any>(
           Object.create(null), // PRELOAD 预加载缓存
           mutate, // mutate 函数
           setter, // 设置缓存函数 TODO 这是干嘛的
-          subscribe, // 订阅函数 TODO 这是干嘛的
+          subscribe, // 订阅函数用来通知 react 状态发生了变更
         ]);
         // 下面的逻辑只在浏览器端运行，服务端不运行
         // 服务端不需要监听 focus/reconnect
