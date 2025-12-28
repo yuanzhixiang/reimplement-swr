@@ -618,38 +618,50 @@ export const useSWRHandler = <Data = any, Error = any>(
           }
         }
       } catch (err: any) {
+        // 清理 FETCH[key]，因为请求已经失败了
         cleanupState();
 
+        // 获取最新配置和重试设置
         const currentConfig = getConfig();
         const { shouldRetryOnError } = currentConfig;
 
         // Not paused, we continue handling the error. Otherwise, discard it.
+        // 如果 SWR 被暂停了，就不处理错误（丢弃）
         if (!currentConfig.isPaused()) {
           // Get a new error, don't use deep comparison for errors.
+          // 把错误存入 finalState，后面会更新到缓存
           finalState.error = err as Error;
 
           // Error event and retry logic. Only for the actual request, not
           // deduped ones.
+          // 触发错误回调和重试，只有发起新请求的场景才触发 onError 回调
           if (shouldStartNewRequest && callbackSafeguard()) {
             currentConfig.onError(err, key, currentConfig);
             if (
+              // shouldRetryOnError 为 true 才重试
               shouldRetryOnError === true ||
               (isFunction(shouldRetryOnError) &&
                 shouldRetryOnError(err as Error))
             ) {
+              // 三个条件满足其一就继续重试
               if (
+                // 没开启聚焦重新验证
                 !getConfig().revalidateOnFocus ||
+                // 没开启重连重新验证
                 !getConfig().revalidateOnReconnect ||
+                // 页面当前活跃
                 isActive()
               ) {
                 // If it's inactive, stop. It will auto-revalidate when
                 // refocusing or reconnecting.
                 // When retrying, deduplication is always enabled.
+                // 调用 onErrorRetry（默认是指数退避），传入重试回调函数
                 currentConfig.onErrorRetry(
                   err,
                   key,
                   currentConfig,
                   (_opts) => {
+                    // 这里触发重试逻辑
                     const revalidators = EVENT_REVALIDATORS[key];
                     if (revalidators && revalidators[0]) {
                       revalidators[0](
