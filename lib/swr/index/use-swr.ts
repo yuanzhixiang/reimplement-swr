@@ -284,6 +284,36 @@ export const useSWRHandler = <Data = any, Error = any>(
   // 直接从缓存取出错误信息，如果请求失败了就有值，否则是 undefined
   const error = cached.error;
 
+  // Use a ref to store previously returned data. Use the initial data as its initial value.
+  // 用 ref 保存上一次的数据。"laggy" 意思是"滞后的"，用于实现 keepPreviousData 功能。
+  const laggyDataRef = useRef(data);
+
+  const returnedData = keepPreviousData
+    ? isUndefined(cachedData)
+      ? // checking undefined to avoid null being fallback as well
+        isUndefined(laggyDataRef.current)
+        ? // 连上一次数据都没有，用当前 data
+          data
+        : // 缓存没数据用上一次的（保持旧数据）
+          laggyDataRef.current
+      : // 开启了 keepPreviousData，且有缓存数据，用缓存
+        cachedData
+    : // 没开启 keepPreviousData 那么直接返回 data
+      data;
+
+  const hasKeyButNoData = key && isUndefined(data);
+
+  // Note: the conditionally hook call is fine because the environment
+  // `IS_SERVER` never changes.
+  const isHydration =
+    !IS_SERVER &&
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    useSyncExternalStore(
+      () => noop,
+      () => false,
+      () => true
+    );
+
   throw new Error("useSWRHandler is not implemented yet");
 };
 
