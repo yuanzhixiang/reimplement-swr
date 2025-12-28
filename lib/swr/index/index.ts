@@ -6,3 +6,24 @@ export default useSWR;
 export interface SWRGlobalConfig {
   // suspense: true
 }
+
+// Types
+export type {
+  SWRConfiguration,
+  Revalidator,
+  RevalidatorOptions,
+  Key,
+  // KeyLoader,
+  KeyedMutator,
+  SWRHook,
+  SWRResponse,
+  Cache,
+  BareFetcher,
+  Fetcher,
+  MutatorCallback,
+  MutatorOptions,
+  Middleware,
+  Arguments,
+  State,
+  ScopedMutator,
+} from "../_internal";

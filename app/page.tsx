@@ -1,20 +1,20 @@
 "use client";
 
-import useSWR from "swr"; // , { Middleware, SWRHook }
+import useSWR, { Middleware, SWRHook } from "swr"; // ,
 
 // 记录请求耗时的中间件
-// const timerMiddleware: Middleware = (useSWRNext: SWRHook) => {
-//   return (key, fetcher, config) => {
-//     const start = Date.now()
-//     console.log('⏱️ [Timer] 开始计时')
+const timerMiddleware: Middleware = (useSWRNext: SWRHook) => {
+  return (key, fetcher, config) => {
+    const start = Date.now();
+    console.log("⏱️ [Timer] 开始计时");
 
-//     const swr = useSWRNext(key, fetcher, config)
+    const swr = useSWRNext(key, fetcher, config);
 
-//     console.log(`⏱️ [Timer] 当前耗时: ${Date.now() - start}ms`)
+    console.log(`⏱️ [Timer] 当前耗时: ${Date.now() - start}ms`);
 
-//     return swr
-//   }
-// }
+    return swr;
+  };
+};
 
 // 模拟 fetcher
 const fetcher = async (url: string) => {
@@ -24,7 +24,7 @@ const fetcher = async (url: string) => {
 
 export default function SWRMiddlewareDemo() {
   const { data, isLoading, mutate } = useSWR("/api/demo", fetcher, {
-    // use: [timerMiddleware],
+    use: [timerMiddleware],
     // revalidateOnFocus: false,
   });
 
