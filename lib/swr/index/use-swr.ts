@@ -301,18 +301,44 @@ export const useSWRHandler = <Data = any, Error = any>(
     : // 没开启 keepPreviousData 那么直接返回 data
       data;
 
+  // 有 key 但没数据，表示正在加载中。用于后续判断 loading 状态。
   const hasKeyButNoData = key && isUndefined(data);
 
   // Note: the conditionally hook call is fine because the environment
   // `IS_SERVER` never changes.
+  // 判断是否处于 hydration 阶段（服务端渲染后，客户端接管的那一刻）
   const isHydration =
     !IS_SERVER &&
     // eslint-disable-next-line react-hooks/rules-of-hooks
     useSyncExternalStore(
       () => noop,
+      // 客户端渲染则为 false
       () => false,
+      // 服务端渲染直接为 true
+      // 客户端 hydration
       () => true
     );
+
+  // During the initial SSR render, warn if the key has no data pre-fetched via:
+  // - fallback data
+  // - preload calls
+  // - initial data from the cache provider
+  // We only warn once for each key during SSR.
+  // 在服务端渲染(SSR) hydration 阶段，检测是否忘记预取数据，如果忘了就在控制台发出警告。只有当下面四个条件同时满足时才发出报警
+  if (
+    // 1. 开启了严格警告模式
+    strictServerPrefetchWarning &&
+    // 2. 正处于 hydration 阶段
+    isHydration &&
+    // 3. 没有使用 Suspense 模式
+    !suspense &&
+    // 4. 有 key 但没有数据
+    hasKeyButNoData
+  ) {
+    console.warn(
+      `Missing pre-initiated data for serialized key "${key}" during server-side rendering. Data fethcing should be initiated on the server and provided to SWR via fallback data. You can set "strictServerPrefetchWarning: false" to disable this warning.`
+    );
+  }
 
   throw new Error("useSWRHandler is not implemented yet");
 };
