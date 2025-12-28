@@ -11,7 +11,7 @@ import {
   defaultConfig,
   IS_REACT_LEGACY,
   IS_SERVER,
-  // rAF,
+  rAF,
   useIsomorphicLayoutEffect,
   SWRGlobalState,
   serialize,
@@ -22,7 +22,7 @@ import {
   createCacheHelper,
   SWRConfig as ConfigProvider,
   withArgs,
-  // subscribeCallback,
+  subscribeCallback,
   // getTimestamp,
   internalMutate,
   revalidateEvents,
@@ -460,7 +460,83 @@ export const useSWRHandler = <Data = any, Error = any>(
   // After mounted or key changed.
   useIsomorphicLayoutEffect(() => {
     if (!key) return;
-    throw new Error("");
+
+    const softRevalidate = revalidate.bind(UNDEFINED, WITH_DEDUPE);
+
+    let nextFocusRevalidatedAt = 0;
+
+    if (getConfig().revalidateOnFocus) {
+      const initNow = Date.now();
+      nextFocusRevalidatedAt = initNow + getConfig().focusThrottleInterval;
+    }
+
+    // Expose revalidators to global event listeners. So we can trigger
+    // revalidation from the outside.
+    const onRevalidate = (
+      type: RevalidateEvent,
+      opts: {
+        retryCount?: number;
+        dedupe?: boolean;
+      } = {}
+    ) => {
+      if (type == revalidateEvents.FOCUS_EVENT) {
+        const now = Date.now();
+        if (
+          getConfig().revalidateOnFocus &&
+          now > nextFocusRevalidatedAt &&
+          isActive()
+        ) {
+          nextFocusRevalidatedAt = now + getConfig().focusThrottleInterval;
+          softRevalidate();
+        }
+      } else if (type == revalidateEvents.RECONNECT_EVENT) {
+        if (getConfig().revalidateOnReconnect && isActive()) {
+          softRevalidate();
+        }
+      } else if (type == revalidateEvents.MUTATE_EVENT) {
+        return revalidate();
+      } else if (type == revalidateEvents.ERROR_REVALIDATE_EVENT) {
+        return revalidate(opts);
+      }
+      return;
+    };
+
+    const unsubEvents = subscribeCallback(
+      key,
+      EVENT_REVALIDATORS,
+      onRevalidate
+    );
+
+    // Mark the component as mounted and update corresponding refs.
+    unmountedRef.current = false;
+    keyRef.current = key;
+    initialMountedRef.current = true;
+
+    // Keep the original key in the cache.
+    setCache({ _k: fnArg });
+
+    // Trigger a revalidation
+    if (shouldDoInitialRevalidation) {
+      // Performance optimization: if a request is already in progress for this key,
+      // skip the revalidation to avoid redundant work
+      if (!FETCH[key]) {
+        if (isUndefined(data) || IS_SERVER) {
+          // Revalidate immediately.
+          softRevalidate();
+        } else {
+          // Delay the revalidate if we have data to return so we won't block
+          // rendering.
+          rAF(softRevalidate);
+        }
+      }
+    }
+
+    return () => {
+      // Mark it as unmounted.
+      unmountedRef.current = true;
+
+      unsubEvents();
+    };
   }, [key]);
 
   // Polling
