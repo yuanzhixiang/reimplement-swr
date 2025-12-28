@@ -340,6 +340,102 @@ export const useSWRHandler = <Data = any, Error = any>(
     );
   }
 
+  // - Suspense mode and there's stale data for the initial render.
+  // - Not suspense mode and there is no fallback data and `revalidateIfStale` is enabled.
+  // - `revalidateIfStale` is enabled but `data` is not defined.
+  // 这是决定组件挂载时是否要重新请求数据的逻辑
+  // 用立即执行函数（IIFE）计算是否需要初始 revalidation
+  const shouldDoInitialRevalidation = (() => {
+    // if a key already has revalidators and also has error, we should not trigger revalidation
+    // 如果这个 key 已经有其他组件在处理 且 之前请求出错了，就不重新请求。 避免多个组件同时触发错误重试。
+    if (hasRevalidator && !isUndefined(error)) return false;
+
+    // If `revalidateOnMount` is set, we take the value directly.
+    // 如果是首次挂载，且用户明确设置了 revalidateOnMount，直接用用户的设置
+    if (isInitialMount && !isUndefined(revalidateOnMount))
+      return revalidateOnMount;
+
+    // If it's paused, we skip revalidation.
+    // 如果 SWR 被暂停了（比如用户离线、省电模式），不请求
+    if (getConfig().isPaused()) return false;
+
+    // Under suspense mode, it will always fetch on render if there is no
+    // stale data so no need to revalidate immediately mount it again.
+    // If data exists, only revalidate if `revalidateIfStale` is true.
+    // Suspense 模式下
+    // - 没数据：返回 false，因为 Suspense 会自动触发 fetch，不需要额外 revalidate
+    // - 有数据：看 revalidateIfStale 配置，决定是否刷新过期数据
+    if (suspense) return isUndefined(data) ? false : revalidateIfStale;
+
+    // If there is no stale data, we need to revalidate when mount;
+    // If `revalidateIfStale` is set to true, we will always revalidate.
+    // 默认逻辑（非 Suspense）
+    // - 没数据：必须请求（true）
+    // - 有数据：看 revalidateIfStale 配置，决定是否刷新过期数据
+    return isUndefined(data) || revalidateIfStale;
+  })();
+
+  // Resolve the default validating state:
+  // If it's able to validate, and it should revalidate when mount, this will be true.
+  // 四个条件同时满足时，默认验证状态为 true。 !! 是把结果转成布尔值。
+  // 意思是如果首次挂载且即将发起请求，那默认状态就是"正在验证中"。
+  const defaultValidatingState = !!(
+    // 有 key
+    (
+      key &&
+      // 有 fetcher 函数
+      fetcher &&
+      // 是首次挂载
+      isInitialMount &&
+      // 需要初始 revalidation
+      shouldDoInitialRevalidation
+    )
+  );
+  // 缓存里没有这个状态，用默认值
+  const isValidating = isUndefined(cached.isValidating)
+    ? // 缓存里没有这个状态，用默认值
+      defaultValidatingState
+    : // 缓存里有，用缓存的
+      cached.isValidating;
+  const isLoading = isUndefined(cached.isLoading)
+    ? // 缓存里没有这个状态，用默认值
+      defaultValidatingState
+    : // 缓存里有，用缓存的
+      cached.isLoading;
+
+  // The revalidation function is a carefully crafted wrapper of the original
+  // `fetcher`, to correctly handle the many edge cases.
+  // revalidate 是 SWR 的核心请求函数，负责调用 fetcher 获取数据并更新缓存
+  const revalidate = useCallback(
+    async (revalidateOpts?: RevalidatorOptions): Promise<boolean> => {
+      throw new Error("revalidate is not implemented yet");
+    },
+    // `setState` is immutable, and `eventsCallback`, `fnArg`, and
+    // `keyValidating` are depending on `key`, so we can exclude them from
+    // the deps array.
+    //
+    // FIXME:
+    // `fn` and `config` might be changed during the lifecycle,
+    // but they might be changed every render like this.
+    // `useSWR('key', () => fetch('/api/'), { suspense: true })`
+    // So we omit the values from the deps array
+    // even though it might cause unexpected behaviors.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [key, cache]
+  );
+
+  // Similar to the global mutate but bound to the current cache and key.
+  // `cache` isn't allowed to change during the lifecycle.
+  // 返回一个绑定当前 key 的 mutate 函数
+  const boundMutate: SWRResponse<Data, Error>["mutate"] = useCallback(
+    // Use callback to make sure `keyRef.current` returns latest result every time
+    (...args: any[]) => {
+      return internalMutate(cache, keyRef.current, ...args);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
+
   throw new Error("useSWRHandler is not implemented yet");
 };
 
