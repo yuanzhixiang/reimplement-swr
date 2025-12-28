@@ -9,7 +9,7 @@ import React, {
 
 import {
   defaultConfig,
-  // IS_REACT_LEGACY,
+  IS_REACT_LEGACY,
   IS_SERVER,
   // rAF,
   useIsomorphicLayoutEffect,
@@ -138,21 +138,27 @@ export const useSWRHandler = <Data = any, Error = any>(
       : config.fallback[key]
     : fallbackData;
 
+  // 比较函数，判断前后状态是否"相等"（决定是否需要重新渲染）
   const isEqual = (prev: State<Data, any>, current: State<Data, any>) => {
-    // TODO 这里怪怪的，先跳过
+    // 只遍历组件用到的字段。比如组件只用了 { data } 就只检查 data
     for (const _ in stateDependencies) {
       const t = _ as keyof StateDependencies;
+      // 对 data 字段做特殊处理
       if (t === "data") {
+        // 深度比较 prev.data 和 current.data。如果不相等，进入下面的逻辑
         if (!compare(prev[t], current[t])) {
+          // 之前有数据（prev.data 不是 undefined） → 数据真的变了，返回 false（需要重新渲染）
           if (!isUndefined(prev[t])) {
             return false;
           }
-          // if (!compare(returnedData, current[t])) {
-          //   return false;
-          // }
-          throw new Error("compare not implemented yet");
+          // 之前没数据（prev.data 是 undefined） → 比较 returnedData（可能是 fallback）和新数据 → 如果不同，返回 false
+          // 这里的意图是从 fallback 过渡到真实数据时，如果内容一样就不重新渲染
+          if (!compare(returnedData, current[t])) {
+            return false;
+          }
         }
       } else {
+        // 其他字段（error、isLoading、isValidating）直接用 === 比较
         if (current[t] !== prev[t]) {
           return false;
         }
@@ -436,9 +442,181 @@ export const useSWRHandler = <Data = any, Error = any>(
     []
   );
 
-  throw new Error("useSWRHandler is not implemented yet");
+  // The logic for updating refs.
+  useIsomorphicLayoutEffect(() => {
+    // 把最新的 fetcher 保存到 ref
+    // 这样 revalidate 函数里通过 fetcherRef.current 总能拿到最新的 fetcher，即使 fetcher 变了也不用重新创建 revalidate。
+    fetcherRef.current = fetcher;
+    // 保存最新的 config 配置
+    configRef.current = config;
+    // Handle laggy data updates. If there's cached data of the current key,
+    // it'll be the correct reference.
+    // 如果缓存有数据，更新 laggyDataRef（用于 keepPreviousData 功能）。 只在有数据时更新，保证切换 key 时能保留上一次的数据。
+    if (!isUndefined(cachedData)) {
+      laggyDataRef.current = cachedData;
+    }
+  });
+
+  // After mounted or key changed.
+  useIsomorphicLayoutEffect(() => {
+    if (!key) return;
+    throw new Error("");
+  }, [key]);
+
+  // Polling
+  // 这是 SWR 的轮询（Polling）功能实现
+  useIsomorphicLayoutEffect(() => {
+    // 定义一个 timer 变量来存储 setTimeout 的返回值
+    let timer: any;
+
+    // 安排下一次轮询
+    function next() {
+      // Use the passed interval
+      // ...or invoke the function with the updated data to get the interval
+      // 获取轮询间隔 refreshInterval 可以是数字，也可以是函数
+      const interval = isFunction(refreshInterval)
+        ? // 如果是函数则执行函数获取返回值
+          refreshInterval(getCache().data)
+        : // 如果是数字则直接使用
+          refreshInterval;
+
+      // We only start the next interval if `refreshInterval` is not 0, and:
+      // - `force` is true, which is the start of polling
+      // - or `timer` is not 0, which means the effect wasn't canceled
+      // 如果 interval 有效（不为 0）且没被取消（timer !== -1），安排下一次执行。
+      if (interval && timer !== -1) {
+        timer = setTimeout(execute, interval);
+      }
+    }
+
+    function execute() {
+      // Check if it's OK to execute:
+      // Only revalidate when the page is visible, online, and not errored.
+      if (
+        // 没有错误
+        !getCache().error &&
+        // 页面可见（或允许隐藏时刷新）
+        (refreshWhenHidden || getConfig().isVisible()) &&
+        // 网络在线（或允许离线时刷新）
+        (refreshWhenOffline || getConfig().isOnline())
+      ) {
+        // 发请求，完成后安排下一次
+        revalidate(WITH_DEDUPE).then(next);
+      } else {
+        // Schedule the next interval to check again.
+        // 条件不满足，跳过这次，直接安排下一次
+        next();
+      }
+    }
+
+    // effect 执行时立即调用 next() 开始轮询循环
+    next();
+
+    return () => {
+      // 组件卸载或依赖变化时，清除定时器
+      if (timer) {
+        clearTimeout(timer);
+        // timer = -1 防止 next() 再安排新定时器
+        timer = -1;
+      }
+    };
+  }, [refreshInterval, refreshWhenHidden, refreshWhenOffline, key]);
+
+  // Display debug info in React DevTools.
+  // 提供一些更有意义的调试信息
+  useDebugValue(returnedData);
+
+  // In Suspense mode, we can't return the empty `data` state.
+  // If there is an `error`, the `error` needs to be thrown to the error boundary.
+  // If there is no `error`, the `revalidation` promise needs to be thrown to
+  // the suspense boundary.
+  // 只在开启 Suspense 模式时执行
+  if (suspense) {
+    // SWR should throw when trying to use Suspense on the server with React 18,
+    // without providing any fallback data. This causes hydration errors. See:
+    // https://github.com/vercel/swr/issues/1832
+    // React 18 + 服务端 + 没有数据 → 抛错
+    // 因为 SSR 时不能 throw Promise（没有 Suspense boundary），必须提供 fallback 数据
+    if (!IS_REACT_LEGACY && IS_SERVER && hasKeyButNoData) {
+      throw new Error("Fallback data is required when using Suspense in SSR.");
+    }
+
+    // Always update fetcher and config refs even with the Suspense mode.
+    // 没数据时（即将 suspend），也要更新 refs，保证 resume 后能用最新的 fetcher 和 config
+    if (hasKeyButNoData) {
+      fetcherRef.current = fetcher;
+      configRef.current = config;
+      unmountedRef.current = false;
+    }
+
+    // 检查是否有预加载的数据
+    const req = PRELOAD[key];
+
+    const mutateReq =
+      !isUndefined(req) && hasKeyButNoData
+        ? // 有预加载 + 没数据 → 调用 boundMutate(req) 把预加载数据写入缓存
+          boundMutate(req)
+        : // TODO 所以这里没有预加载数据，为什么要返回这个？resolvedUndef 的作用是什么？
+          resolvedUndef;
+
+    // use(mutateReq) → 等待 mutate 完成
+    use(mutateReq);
+
+    // 如果有错误，throw 给 ErrorBoundary 处理
+    if (!isUndefined(error) && hasKeyButNoData) {
+      throw error;
+    }
+    const revalidation = hasKeyButNoData
+      ? // 没数据时发起请求
+        revalidate(WITH_DEDUPE)
+      : // 有数据就跳过
+        resolvedUndef;
+    // 特殊情况：有 returnedData（比如 fallback）但 cachedData 是 undefined。
+    // 手动把 Promise 标记为已完成，避免不必要的 suspend。
+    // 这是一个 hack，直接修改 React 内部的 Promise 状态。
+    if (!isUndefined(returnedData) && hasKeyButNoData) {
+      // @ts-ignore modify react promise status
+      revalidation.status = "fulfilled";
+      // @ts-ignore modify react promise value
+      revalidation.value = true;
+    }
+    // 调用 React 的 use() hook
+    // - Promise pending → throw Promise，触发 Suspense
+    // - Promise fulfilled → 返回结果，继续渲染
+    use(revalidation);
+  }
+
+  // 这下面的 stateDependencies 之所以要记录是为了做性能优化
+  const swrResponse: SWRResponse<Data, Error> = {
+    mutate: boundMutate,
+    get data() {
+      // 记录这个组件用了 data
+      stateDependencies.data = true;
+      return returnedData;
+    },
+    get error() {
+      // 记录这个组件用了 error
+      stateDependencies.error = true;
+      return error;
+    },
+    get isValidating() {
+      // 记录这个组件用了 isValidating
+      stateDependencies.isValidating = true;
+      return isValidating;
+    },
+    get isLoading() {
+      // 记录这个组件用了 isLoading
+      stateDependencies.isLoading = true;
+      return isLoading;
+    },
+  };
+  return swrResponse;
 };
 
 const useSWR = withArgs<SWRHook>(useSWRHandler);
 
 export default useSWR;
+
+const WITH_DEDUPE = { dedupe: true };
+// 复用已经完成的 promise
+const resolvedUndef = Promise.resolve(UNDEFINED);
