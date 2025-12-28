@@ -23,7 +23,7 @@ const fetcher = async (url: string) => {
 };
 
 export default function SWRMiddlewareDemo() {
-  const { data, isLoading } = useSWR("/api/demo", fetcher, {
+  const { data, isLoading, mutate } = useSWR("/api/demo", fetcher, {
     // use: [timerMiddleware],
     // revalidateOnFocus: false,
   });
@@ -37,6 +37,7 @@ export default function SWRMiddlewareDemo() {
         <pre>{JSON.stringify(data, null, 2)}</pre>
       )}
       <p>打开控制台查看请求耗时日志</p>
+      <button onClick={() => mutate()}>Mutate</button>
     </div>
   );
 }
