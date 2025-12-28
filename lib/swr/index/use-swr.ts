@@ -459,19 +459,26 @@ export const useSWRHandler = <Data = any, Error = any>(
 
   // After mounted or key changed.
   useIsomorphicLayoutEffect(() => {
+    // 没有 key 就不执行任何操作
     if (!key) return;
 
+    // 创建一个软重新验证函数，预绑定了去重参数。调用时会自动带上 { dedupe: true }
+    // TODO 这里的软重新验证函数是什么意思？
     const softRevalidate = revalidate.bind(UNDEFINED, WITH_DEDUPE);
 
+    // 初始化焦点重新验证的节流时间戳
     let nextFocusRevalidatedAt = 0;
 
+    // 如果开启了 revalidateOnFocus，默认会开启
     if (getConfig().revalidateOnFocus) {
       const initNow = Date.now();
+      // 默认 focusThrottleInterval = 5000，那么在接下来 5 秒内再次聚焦不会触发重新验证
       nextFocusRevalidatedAt = initNow + getConfig().focusThrottleInterval;
     }
 
     // Expose revalidators to global event listeners. So we can trigger
     // revalidation from the outside.
+    // 定义统一的重新验证事件处理器，根据事件类型做不同处理
     const onRevalidate = (
       type: RevalidateEvent,
       opts: {
@@ -479,6 +486,7 @@ export const useSWRHandler = <Data = any, Error = any>(
         dedupe?: boolean;
       } = {}
     ) => {
+      // 聚焦事件：用户切回页面时，带节流地重新验证
       if (type == revalidateEvents.FOCUS_EVENT) {
         const now = Date.now();
         if (
@@ -489,18 +497,25 @@ export const useSWRHandler = <Data = any, Error = any>(
           nextFocusRevalidatedAt = now + getConfig().focusThrottleInterval;
           softRevalidate();
         }
-      } else if (type == revalidateEvents.RECONNECT_EVENT) {
+      }
+      // 网络重连事件：断网恢复后重新验证
+      else if (type == revalidateEvents.RECONNECT_EVENT) {
         if (getConfig().revalidateOnReconnect && isActive()) {
           softRevalidate();
         }
-      } else if (type == revalidateEvents.MUTATE_EVENT) {
+      }
+      // Mutate 事件：调用 mutate() 后触发重新验证
+      else if (type == revalidateEvents.MUTATE_EVENT) {
         return revalidate();
-      } else if (type == revalidateEvents.ERROR_REVALIDATE_EVENT) {
+      }
+      // 错误重试事件：请求失败后的重试，带上重试次数等参数
+      else if (type == revalidateEvents.ERROR_REVALIDATE_EVENT) {
         return revalidate(opts);
       }
       return;
     };
 
+    // 把 onRevalidate 注册到全局事件系统，这样外部事件（聚焦、重连等）就能触发这个组件的重新验证
     const unsubEvents = subscribeCallback(
       key,
       EVENT_REVALIDATORS,
@@ -508,33 +523,43 @@ export const useSWRHandler = <Data = any, Error = any>(
     );
 
     // Mark the component as mounted and update corresponding refs.
+    // 标记组件已挂载，保存当前 key
     unmountedRef.current = false;
     keyRef.current = key;
     initialMountedRef.current = true;
 
     // Keep the original key in the cache.
+    // 把原始 key（可能是数组或对象）存到缓存中，用于后续比较
     setCache({ _k: fnArg });
 
     // Trigger a revalidation
+    // 触发初始重新验证
     if (shouldDoInitialRevalidation) {
       // Performance optimization: if a request is already in progress for this key,
       // skip the revalidation to avoid redundant work
+      // 没有正在进行的请求
       if (!FETCH[key]) {
         if (isUndefined(data) || IS_SERVER) {
           // Revalidate immediately.
+          // 没数据或服务端：立即请求
           softRevalidate();
         } else {
           // Delay the revalidate if we have data to return so we won't block
           // rendering.
+          // 有数据：延迟到下一帧，不阻塞渲染
           rAF(softRevalidate);
         }
       }
     }
 
     return () => {
+      // 组件卸载或 key 变化时
+
       // Mark it as unmounted.
+      // 标记已卸载
       unmountedRef.current = true;
 
+      // 取消事件订阅
       unsubEvents();
     };
   }, [key]);

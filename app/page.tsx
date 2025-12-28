@@ -25,7 +25,7 @@ const fetcher = async (url: string) => {
 export default function SWRMiddlewareDemo() {
   const { data, isLoading } = useSWR("/api/demo", fetcher, {
     // use: [timerMiddleware],
-    revalidateOnFocus: false,
+    // revalidateOnFocus: false,
   });
 
   return (
