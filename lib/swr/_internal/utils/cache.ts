@@ -59,20 +59,28 @@ export const initCache = <Data = any>(
     // 创建一个空对象 {}
     const subscriptions: Record<string, ((current: any, prev: any) => void)[]> =
       Object.create(null);
-    // TODO 这个是函数，先不看
+    // subscribe - 订阅函数
     const subscribe = (
+      // key：要订阅的缓存 key
       key: string,
+      // callback：数据变化时的回调，接收新值和旧值
       callback: (current: any, prev: any) => void
     ) => {
+      // 获取该 key 的订阅者数组，没有就初始化为空数组
       const subs = subscriptions[key] || [];
       subscriptions[key] = subs;
 
+      // 把回调添加到订阅者列表
       subs.push(callback);
+
+      // 返回取消订阅函数，调用时从数组中移除该回调
       return () => subs.splice(subs.indexOf(callback), 1);
     };
-    // TODO 这个是函数，先不看
+    // setter - 设置函数
     const setter = (key: string, value: any, prev: any) => {
+      // 先把新值写入缓存（provider 通常是 Map）
       provider.set(key, value);
+      // 然后通知所有订阅者：遍历该 key 的所有回调，传入新值和旧值
       const subs = subscriptions[key];
       if (subs) {
         for (const fn of subs) {

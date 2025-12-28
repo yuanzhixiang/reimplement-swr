@@ -23,7 +23,7 @@ import {
   SWRConfig as ConfigProvider,
   withArgs,
   subscribeCallback,
-  // getTimestamp,
+  getTimestamp,
   internalMutate,
   revalidateEvents,
   mergeObjects,
@@ -414,7 +414,270 @@ export const useSWRHandler = <Data = any, Error = any>(
   // revalidate 是 SWR 的核心请求函数，负责调用 fetcher 获取数据并更新缓存
   const revalidate = useCallback(
     async (revalidateOpts?: RevalidatorOptions): Promise<boolean> => {
-      throw new Error("revalidate is not implemented yet");
+      // 从 ref 中获取当前最新的 fetcher 函数
+      const currentFetcher = fetcherRef.current;
+
+      if (
+        // 没有 key → 不请求
+        !key ||
+        // 没有 fetcher 函数 → 不请求
+        !currentFetcher ||
+        // 组件已卸载 → 不请求
+        unmountedRef.current ||
+        // SWR 被暂停 → 不请求
+        getConfig().isPaused()
+      ) {
+        return false;
+      }
+
+      let newData: Data;
+      let startAt: number;
+      let loading = true;
+      const opts = revalidateOpts || {};
+
+      // If there is no ongoing concurrent request, or `dedupe` is not set, a
+      // new request should be initiated.
+      // 请求去重的判断逻辑
+      const shouldStartNewRequest =
+        // 该 key 没有正在进行的请求
+        !FETCH[key] ||
+        // 没有开启去重选项
+        !opts.dedupe;
+
+      /*
+         For React 17
+         Do unmount check for calls:
+         If key has changed during the revalidation, or the component has been
+         unmounted, old dispatch and old event callbacks should not take any
+         effect
+
+        For React 18
+        only check if key has changed
+        https://github.com/reactwg/react-18/discussions/82
+      */
+      // 回调安全检查函数，防止过期的回调被执行
+      // 返回 true 表示安全可以继续，false 表示应该忽略
+      const callbackSafeguard = () => {
+        if (IS_REACT_LEGACY) {
+          return (
+            // 组件没有卸载
+            !unmountedRef.current &&
+            // key 没有变化
+            key === keyRef.current &&
+            // 组件已经挂载过
+            initialMountedRef.current
+          );
+        }
+        // 只需检查 key 是否变化，因为 React 18 会自动处理卸载组件的状态更新
+        return key === keyRef.current;
+      };
+
+      // The final state object when the request finishes.
+      // 请求结束后的状态：不再验证中、不再加载中。
+      const finalState: State<Data, Error> = {
+        isValidating: false,
+        isLoading: false,
+      };
+      // 请求完成时调用，把最终状态写入缓存
+      const finishRequestAndUpdateState = () => {
+        setCache(finalState);
+      };
+      const cleanupState = () => {
+        // Check if it's still the same request before deleting it.
+        // 从全局 FETCH 对象中删除该请求的记录
+        const requestInfo = FETCH[key];
+        // 检查 requestInfo[1] === startAt，确保删除的是当前这次请求，而不是后来发起的新请求
+        if (requestInfo && requestInfo[1] === startAt) {
+          delete FETCH[key];
+        }
+      };
+
+      // Start fetching. Change the `isValidating` state, update the cache.
+      // 请求开始时的状态：正在验证中
+      const initialState: State<Data, Error> = { isValidating: true };
+
+      try {
+        // 检查是否需要重新发请求
+        if (shouldStartNewRequest) {
+          // 先设置缓存状态为验证中
+          setCache(initialState);
+          // If no cache is being rendered currently (it shows a blank page),
+          // we trigger the loading slow event.
+          // 慢加载提示，如果没有缓存数据且超过 loadingTimeout 还在加载，触发 onLoadingSlow 回调。
+          if (config.loadingTimeout && isUndefined(getCache().data)) {
+            setTimeout(() => {
+              // 超过 loadingTimeout 还在加载，触发 onLoadingSlow 回调。
+              if (loading && callbackSafeguard()) {
+                getConfig().onLoadingSlow(key, config);
+              }
+            }, config.loadingTimeout);
+          }
+
+          // Start the request and save the timestamp.
+          // Key must be truthy if entering here.
+          FETCH[key] = [
+            // fetcher 返回的 Promise
+            currentFetcher(fnArg as DefinitelyTruthy<Key>),
+            // 时间戳（用于竞态检测）
+            getTimestamp(),
+          ];
+        }
+
+        // Wait until the ongoing request is done. Deduplication is also
+        // considered here.
+        // 从 FETCH 取出 Promise 并等待。不管是自己发起的还是复用别人的，都用同一个 Promise。
+        [newData, startAt] = FETCH[key];
+        newData = await newData;
+
+        // 请求完成后，延迟清理 FETCH[key]
+        if (shouldStartNewRequest) {
+          // If the request isn't interrupted, clean it up after the
+          // deduplication interval.
+          // 在 dedupingInterval 期间内的请求要继续复用结果
+          setTimeout(cleanupState, config.dedupingInterval);
+        }
+
+        // If there're other ongoing request(s), started after the current one,
+        // we need to ignore the current one to avoid possible race conditions:
+        //   req1------------------>res1        (current one)
+        //        req2---------------->res2
+        // the request that fired later will always be kept.
+        // The timestamp maybe be `undefined` or a number
+        // 竞态检测，检查是否被更新的请求覆盖
+        // req1 ────────────────> res1 (我)
+        //      req2 ─────────────────> res2 (更新的)
+        if (!FETCH[key] || FETCH[key][1] !== startAt) {
+          // 只有发起新请求的组件才需要触发回调。复用别人请求的组件不触发。
+          if (shouldStartNewRequest) {
+            // 检查回调是否安全执行（组件没卸载、key 没变）
+            if (callbackSafeguard()) {
+              // 触发 onDiscarded 回调，通知用户这次请求的结果被丢弃了
+              getConfig().onDiscarded(key);
+            }
+          }
+          return false;
+        }
+
+        // Clear error.
+        // 清除之前的错误状态
+        finalState.error = UNDEFINED;
+
+        // If there're other mutations(s), that overlapped with the current revalidation:
+        // case 1:
+        //   req------------------>res
+        //       mutate------>end
+        // case 2:
+        //         req------------>res
+        //   mutate------>end
+        // case 3:
+        //   req------------------>res
+        //       mutate-------...---------->
+        // we have to ignore the revalidation result (res) because it's no longer fresh.
+        // meanwhile, a new revalidation should be triggered when the mutation ends.
+        // Mutation 冲突检测
+        const mutationInfo = MUTATION[key];
+        if (
+          // 先检查是否有 mutation 记录
+          !isUndefined(mutationInfo) &&
+          // case 1：请求开始于 mutation 开始之前
+          (startAt <= mutationInfo[0] ||
+            // case 2：请求开始于 mutation 结束之前
+            startAt <= mutationInfo[1] ||
+            // case 3：Mutation 还在进行中
+            mutationInfo[1] === 0)
+        ) {
+          // 更新 isValidating/isLoading 状态
+          finishRequestAndUpdateState();
+          if (shouldStartNewRequest) {
+            if (callbackSafeguard()) {
+              // 通知结果被丢弃
+              getConfig().onDiscarded(key);
+            }
+          }
+          return false;
+        }
+        // Deep compare with the latest state to avoid extra re-renders.
+        // For local state, compare and assign.
+        // 获取缓存数据
+        const cacheData = getCache().data;
+
+        // Since the compare fn could be custom fn
+        // cacheData might be different from newData even when compare fn returns True
+        // 更新缓存数据
+        finalState.data = compare(cacheData, newData)
+          ? // 数据相等用 cacheData（旧引用），避免不必要的重新渲染
+            cacheData
+          : // 数据不等用 newData（新数据），数据真的变了
+            newData;
+
+        // Trigger the successful callback if it's the original request.
+        if (shouldStartNewRequest) {
+          if (callbackSafeguard()) {
+            // 成功时触发 onSuccess 回调
+            getConfig().onSuccess(newData, key, config);
+          }
+        }
+      } catch (err: any) {
+        cleanupState();
+
+        const currentConfig = getConfig();
+        const { shouldRetryOnError } = currentConfig;
+
+        // Not paused, we continue handling the error. Otherwise, discard it.
+        if (!currentConfig.isPaused()) {
+          // Get a new error, don't use deep comparison for errors.
+          finalState.error = err as Error;
+
+          // Error event and retry logic. Only for the actual request, not
+          // deduped ones.
+          if (shouldStartNewRequest && callbackSafeguard()) {
+            currentConfig.onError(err, key, currentConfig);
+            if (
+              shouldRetryOnError === true ||
+              (isFunction(shouldRetryOnError) &&
+                shouldRetryOnError(err as Error))
+            ) {
+              if (
+                !getConfig().revalidateOnFocus ||
+                !getConfig().revalidateOnReconnect ||
+                isActive()
+              ) {
+                // If it's inactive, stop. It will auto-revalidate when
+                // refocusing or reconnecting.
+                // When retrying, deduplication is always enabled.
+                currentConfig.onErrorRetry(
+                  err,
+                  key,
+                  currentConfig,
+                  (_opts) => {
+                    const revalidators = EVENT_REVALIDATORS[key];
+                    if (revalidators && revalidators[0]) {
+                      revalidators[0](
+                        revalidateEvents.ERROR_REVALIDATE_EVENT,
+                        _opts
+                      );
+                    }
+                  },
+                  {
+                    retryCount: (opts.retryCount || 0) + 1,
+                    dedupe: true,
+                  }
+                );
+              }
+            }
+          }
+        }
+      }
+
+      // Mark loading as stopped.
+      // 标记加载结束
+      loading = false;
+
+      // Update the current hook's state.
+      // 更新缓存状态，把 finalState 写入缓存
+      finishRequestAndUpdateState();
+
+      return true;
     },
     // `setState` is immutable, and `eventsCallback`, `fnArg`, and
     // `keyValidating` are depending on `key`, so we can exclude them from
@@ -721,3 +984,14 @@ export default useSWR;
 const WITH_DEDUPE = { dedupe: true };
 // 复用已经完成的 promise
 const resolvedUndef = Promise.resolve(UNDEFINED);
+type DefinitelyTruthy<T> = false extends T
+  ? never
+  : 0 extends T
+  ? never
+  : "" extends T
+  ? never
+  : null extends T
+  ? never
+  : undefined extends T
+  ? never
+  : T;
